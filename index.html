@@ -1,1 +1,78 @@
-<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>AutoDossier</title></head><body><h1 style="color:#0099CC;font-family:sans-serif;text-align:center;padding:40px;">AutoDossier fonctionne !</h1><p style="text-align:center;font-family:sans-serif;">Prochaine étape : coller le vrai code</p></body></html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AutoDossier — Historique véhicule</title><style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:system-ui,-apple-system,sans-serif;background:#F4F6F9;color:#1A2233;min-height:100vh;}
+a{text-decoration:none;}
+.header{background:#fff;border-bottom:1px solid #DDE3EE;padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,0.06);}
+.logo{width:34px;height:34px;background:linear-gradient(135deg,#0099CC,#006699);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.hero{text-align:center;padding:32px 20px 24px;background:linear-gradient(180deg,#E0F5FF 0%,#F4F6F9 100%);border-bottom:1px solid #B3E5F5;}
+.hero h1{font-size:26px;font-weight:800;line-height:1.1;margin-bottom:8px;}
+.hero p{color:#4A5568;font-size:14px;line-height:1.6;}
+.main{max-width:680px;margin:0 auto;padding:18px 16px;}
+.search-box{background:#fff;border-radius:12px;border:1px solid #DDE3EE;padding:18px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+.search-label{font-size:11px;color:#8A96A8;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;display:block;}
+.search-row{display:flex;gap:10px;}
+.plate-wrap{flex:1;position:relative;}
+.flag{position:absolute;left:0;top:0;bottom:0;width:36px;background:#003DA5;border-radius:8px 0 0 8px;display:flex;align-items:center;justify-content:center;font-size:14px;z-index:1;}
+input{width:100%;padding:13px 13px 13px 46px;background:#EEF1F6;border:1px solid #C5CFDF;border-radius:8px;color:#1A2233;font-size:20px;font-family:monospace;letter-spacing:0.1em;font-weight:800;}
+input:focus{outline:2px solid #0099CC;}
+.btn{padding:13px 20px;border-radius:8px;border:none;background:linear-gradient(135deg,#0099CC,#006699);color:#fff;font-weight:800;font-size:14px;cursor:pointer;white-space:nowrap;box-shadow:0 4px 16px rgba(0,153,204,0.3);}
+.btn:disabled{background:#EEF1F6;color:#8A96A8;box-shadow:none;cursor:not-allowed;}
+.scanning{margin-top:10px;color:#0099CC;font-size:12px;font-family:monospace;animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.card{background:linear-gradient(135deg,#E0F5FF,#fff);border-radius:14px;border:1.5px solid #B3E5F5;padding:20px;margin-bottom:14px;box-shadow:0 4px 20px rgba(0,153,204,0.1);}
+.car-name{font-size:24px;font-weight:800;margin-bottom:4px;}
+.plate-badge{font-family:monospace;font-weight:800;font-size:16px;color:#0099CC;background:#fff;border:1px solid #B3E5F5;border-radius:6p<body>
+<div class="header">
+  <div class="logo">🚘</div>
+  <div>
+    <div style="font-weight:800;font-size:16px;">AutoDossier</div>
+    <div style="font-size:10px;color:#8A96A8;letter-spacing:0.08em;text-transform:uppercase;">SIV · TecDoc · SRA · RDEA · ANEA</div>
+  </div>
+  <div style="flex:1"></div>
+  <span>🇫🇷</span>
+</div>
+<div class="hero">
+  <h1>Dossier véhicule<br><span style="color:#0099CC;">par plaque d'immatriculation</span></h1>
+  <p>Marque · Modèle · Motorisation · KType TecDoc · SRA · Sinistralité</p>
+</div>
+<div class="main">
+  <div class="search-box">
+    <label class="search-label">Plaque d'immatriculation française</label>
+    <div class="search-row">
+      <div class="plate-wrap">
+        <div class="flag">🇫🇷</div>
+        <input type="text" id="plateInput" placeholder="Ex : AB-123-CD" autocomplete="off" autocapitalize="characters" spellcheck="false"/>
+      </div>
+      <button class="btn" id="searchBtn" onclick="doSearch()">Rechercher</button>
+    </div>
+    <div class="scanning" id="scanning" style="display:none;">⬡ Interrogation SIV…</div>
+  </div>
+  <div id="error" style="display:none;" class="error"></div>
+  <div id="results" style="display:none;"></div>
+  <div id="empty" class="empty">
+    <div style="font-size:52px;margin-bottom:14px;">🚗</div>
+    <div style="font-size:14px;colo<script>
+const TOKEN="TokenDemo2026B";
+function fmtPlate(r){const p=r.trim().toUpperCase().replace(/[\s\-]/g,"");if(/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(p))return p.slice(0,2)+"-"+p.slice(2,5)+"-"+p.slice(5);return r.trim().toUpperCase();}
+function norm(raw){const d=raw?.data||raw||{};if(d.erreur&&d.erreur!=="")return null;if(!d.marque&&!d.modele)return null;const em={"1":"Essence","2":"Diesel","3":"Électrique","4":"Hybride","5":"E85"};return{immat:d.immat||"—",marque:d.marque||"—",modele:d.modele||"—",version:d.sra_commercial||"",date1erCir:d.date1erCir_fr||"—",vin:d.vin||"—",couleur:d.couleur||"—",energie:d.energieNGC||em[String(d.energie)]||"—",genre:d.genreVCGNGC||"—",carrosserie:d.carrosserieCG||"—",puisFisc:d.puisFisc?d.puisFisc+" CV":"—",puisKW:d.puisFiscReelKW||"",puisCH:d.puisFiscReelCH||"",co2:d.co2?d.co2+" g/km":"—",cylindres:String(d.cylindres||"—"),ccm:d.ccm||"",boite:d.boite_vitesse==="M"?"Manuelle":d.boite_vitesse==="A"?"Automatique":(d.boite_vitesse||"—"),places:String(d.nr_passagers||"—"),portes:String(d.nb_portes||"—"),poids:d.poids||"—",ptac:d.ptac?d.ptac+" kg":"—",typeMine:d.type_mine||d.cnit||"—",moteur:d.code_moteur||"—",sraId:d.sra_id||"—",sraGroup:d.sra_group||"",ktype:d.k_type||d.tecdoc_carid||"—",numSerie:d.numero_serie||"—",numRec:d.num_reception||"—",variante:d.variante||"—",logo:d.logo_marque||null};}
+function row(l,v,a){if(!v||v==="—"||v==="")return"";return`<div class="row"><span class="row-label">${l}</span><span class="row-value${a?" accent":""}">${v}</span></div>`;}
+function lnk(h,i,l,s,c){const cs={cyan:"#0099CC",green:"#0B9E5E",orange:"#C05A00",purple:"#6B3FA0"};return`<a class="link-card" href="${h}" target="_blank"><div class="link-inner"><span style="font-size:18px;">${i}</span><div><div class="link-label">${l}</div>${s?`<div class="link-sub">${s}</div>`:""}</div><span class="link-arr" style="color:${cs[c]||cs.cyan};">↗</span></div></a>`;}
+let rawData=null,showRaw=false;
+async function doSearch(){const inp=document.getElementById("plateInput").value;if(!inp.trim())return;const plate=fmtPlate(inp);document.getElementById("searchBtn").disabled=true;document.getElementById("scanning").style.display="block";document.getElementById("error").style.display="none";document.getElementById("results").style.display="none";document.getElementById("empty").style.display="none";rawData=null;try{const url=`https://api.apiplaqueimmatriculation.com/get-vehicule-info?immatriculation=${encodeURIComponent(plate)}&token=${TOKEN}&pays=FR`;const r=await fetch(url,{method:"POST",headers:{Accept:"application/json"},mode:"cors"});const data=await r.json();rawData=data;const v=norm(data);if(!v){document.getElementById("error").textContent=`⚠ Véhicule non trouvé pour « ${plate} ». Vérifiez la plaque.`;document.getElementById("error").style.display="block";}else{renderResult(v,plate);}}catch(e){document.getElementById("error").innerHTML=`⚠ Erreur API : ${e.message}`;document.getElementById("error").style.display="block";}finally{document.getElementById("searchBtn").disabled=false;document.getElementById("scanning").style.display="none";}}
+document.addEventListener("DOMContentLoaded",()=>{document.getElementById("plateInput").addEventListener("keydown",e=>{if(e.key==="Enter")doSearch();});});
+function toggleRaw(){showRaw=!showRaw;document.getElementById("rawContent").style.display=showRaw?"block":"none";document.getElementById("rawBtn").textContent=showRaw?"▼ Masquer JSON brut":"▶ Afficher JSON brut";}
+function renderResult(v,plate){const pc=(v.immat||plate).replace(/-/g,"");const tu=v.ktype!=="—"?`https://www.tecdoc.net/fr/catalogue-de-pieces/search/?vehicleId=${v.ktype}`:"https://www.tecdoc.net";const ou=v.ktype!=="—"?`https://www.oscaro.com/prd/nav/${v.ktype}`:"https://www.oscaro.com";let html=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px;"><div style="display:flex;align-items:center;gap:12px;">${v.logo?`<img src="${v.logo}" style="height:40px;object-fit:contain;" onerror="this.style.display='none'">`:""}<div><div class="car-name">${v.marque} <span style="color:#0099CC;">${v.modele}</span></div>${v.version?`<div style="color:#4A5568;font-size:13px;">${v.version}</div>`:""}</div></div><div style="text-align:right;"><div class="plate-badge">${v.immat}</div><div class="vin-small">${v.vin}</div></div></div><div class="grid2"><div class="cell cell-br cell-bb"><div class="cell-label">1ère mise en circulation</div><div class="cell-value accent">${v.date1erCir}</div></div><div class="cell cell-bb"><div class="cell-label">Énergie</div><div class="cell-value">${v.energie}</div></div><div class="cell cell-br"><div class="cell-label">Genre</div><div class="cell-value">${v.genre}</div></div><div class="cell"><div class="cell-label">Couleur</div><div class="cell-value">${v.couleur}</div></div></div><div class="badges">${v.ktype!=="—"?`<span class="badge b-cyan">KType : ${v.ktype}</span>`:""}${v.sraId!=="—"?`<span class="badge b-purple">SRA : ${v.sraId}</span>`:""}${v.moteur!=="—"?`<span class="badge b-orange">Moteur : ${v.moteur}</span>`:""}</div></div>
+<div class="section"><div class="sec-header"><span>⚙️</span><span class="sec-title">Fiche technique</span></div><div class="sec-body">${row("Marque",v.marque,true)}${row("Modèle",v.modele,true)}${row("Version",v.version)}${row("Carrosserie",v.carrosserie)}${row("Couleur",v.couleur)}${row("Énergie",v.energie)}${row("Code moteur",v.moteur,true)}${row("Cylindrée",v.ccm)}${row("Nb cylindres",v.cylindres)}${row("Puissance kW",v.puisKW,true)}${row("Puissance ch",v.puisCH,true)}${row("Puissance fiscale",v.puisFisc)}${row("CO₂",v.co2)}${row("Boîte",v.boite)}${row("Places",v.places)}${row("Portes",v.portes)}${row("Poids",v.poids)}${row("PTAC",v.ptac)}</div></div>
+<div class="section"><div class="sec-header"><span>🔑</span><span class="sec-title">Identifiants TecDoc · SRA</span></div><div class="sec-body">${row("KType TecDoc",v.ktype,true)}${row("Code SRA",v.sraId,true)}${row("Groupe SRA",v.sraGroup)}${row("Type mine",v.typeMine)}${row("N° réception",v.numRec)}${row("Variante",v.variante)}${row("N° série",v.numSerie)}${row("VIN",v.vin)}</div></div>
+<div class="section"><div class="sec-header"><span>🔧</span><span class="sec-title">Pièces détachées</span></div><div class="sec-body">${lnk(tu,"📦","TecDoc",`KType ${v.ktype}`,"cyan")}${lnk(ou,"🛒","Oscaro","Pièces compatibles","cyan")}${lnk(`https://www.mister-auto.com/recherche/?immatriculation=${v.immat}`,"🔩","Mister Auto","Par immatriculation FR","green")}${lnk(`https://www.autodoc.fr/car-selection/?plateNumber=${v.immat}&countryCode=FR`,"⚙️","Autodoc","Pièces & accessoires","green")}</div></div>
+<div class="section"><div class="sec-header"><span>📋</span><span class="sec-title">Historique & sinistralité</span></div><div class="sec-body">${lnk(`https://histovec.interieur.gouv.fr/histovec/owner?plaque=${pc}`,"🇫🇷","HistoVec","CT · Sinistres · VGE · GRATUIT","green")}${lnk("https://www.rdea.fr","🔎","RDEA","Sinistralité · Pro agréé","purple")}${lnk("https://www.anea.fr","🏛️","ANEA","Via votre assureur","purple")}${lnk("https://www.fcainfo.fr","⚖️","FCA","Certificat non-gage","orange")}${lnk("https://www.utac-otc.com","🔧","UTAC-OTC","CT officiels","orange")}</div></div>
+<div class="section"><div class="sec-header"><span>🛠️</span><span class="sec-title">Réponse brute API</span></div><div class="sec-body"><button class="raw-btn" id="rawBtn" onclick="toggleRaw()">▶ Afficher JSON brut</button><pre id="rawContent" style="display:none;"></pre></div></div>`;
+document.getElementById("results").innerHTML=html;document.getElementById("results").style.display="block";document.getElementById("rawContent").textContent=JSON.stringify(rawData,null,2);}
+</script>
+</body>
+</html>
