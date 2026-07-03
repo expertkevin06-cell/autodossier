@@ -1,0 +1,333 @@
+import { useState } from "react";
+
+// ── ⚙️ CONFIG — Mettez ici l'URL de votre backend déployé ─────────────────────
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ""; // Défini dans .env.local ou variable Vercel
+
+const T = {
+  bg:"#F4F6F9", surface:"#FFFFFF", surfaceAlt:"#EEF1F6",
+  border:"#DDE3EE", borderStrong:"#C5CFDF",
+  cyan:"#0099CC", cyanLight:"#E0F5FF", cyanMid:"#B3E5F5",
+  text:"#1A2233", textMid:"#4A5568", textSoft:"#8A96A8",
+  green:"#0B9E5E", greenBg:"#E6F7F0", greenBorder:"#A8DFC5",
+  red:"#D93025", redBg:"#FDECEA", redBorder:"#F5B8B4",
+  orange:"#C05A00", orangeBg:"#FFF0E6", orangeBorder:"#FFCFA0",
+  purple:"#6B3FA0", purpleBg:"#F3EEFF", purpleBorder:"#C9B0E8",
+};
+
+async function fetchPlate(plate) {
+  const url = `${BACKEND_URL}/api/plaque?immat=${encodeURIComponent(plate)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Erreur serveur HTTP ${resp.status}`);
+  return resp.json();
+}
+
+function normalize(raw) {
+  const d = raw?.data || raw || {};
+  if (d.erreur && d.erreur !== "") return null;
+  if (!d.marque && !d.modele) return null;
+  const energieMap = {"1":"Essence","2":"Diesel","3":"Électrique","4":"Hybride","5":"E85","6":"Bicarburation"};
+  return {
+    immat:        d.immat || "—",
+    marque:       d.marque || "—",
+    modele:       d.modele || "—",
+    version:      d.sra_commercial || "",
+    date1erCir:   d.date1erCir_fr || "—",
+    vin:          d.vin || "—",
+    couleur:      d.couleur || "—",
+    energie:      d.energieNGC || energieMap[String(d.energie)] || "—",
+    genreVCG:     d.genreVCGNGC || "—",
+    carrosserie:  d.carrosserieCG || "—",
+    puisFisc:     d.puisFisc ? `${d.puisFisc} CV` : "—",
+    puisKW:       d.puisFiscReelKW || d.puisFiscReel || "",
+    puisCH:       d.puisFiscReelCH || "",
+    co2:          d.co2 ? `${d.co2} g/km` : "—",
+    cylindres:    String(d.cylindres || "—"),
+    ccm:          d.ccm || "",
+    boite:        d.boite_vitesse==="M"?"Manuelle":d.boite_vitesse==="A"?"Automatique":(d.boite_vitesse||"—"),
+    nbPassagers:  String(d.nr_passagers || "—"),
+    nbPortes:     String(d.nb_portes || "—"),
+    poids:        d.poids || "—",
+    ptac:         d.ptac ? `${d.ptac} kg` : "—",
+    typeMine:     d.type_mine || d.cnit || "—",
+    codeMoteur:   d.code_moteur || "—",
+    sraId:        d.sra_id || "—",
+    sraGroup:     d.sra_group || "",
+    ktype:        d.k_type || d.tecdoc_carid || "—",
+    numSerie:     d.numero_serie || "—",
+    numReception: d.num_reception || "—",
+    variante:     d.variante || "—",
+    logoUrl:      d.logo_marque || null,
+    collection:   d.collection === "oui",
+  };
+}
+
+function ScanBar({active}) {
+  return (
+    <div style={{position:"absolute",inset:0,overflow:"hidden",borderRadius:"10px",pointerEvents:"none",opacity:active?1:0,transition:"opacity 0.3s"}}>
+      <div style={{position:"absolute",left:0,right:0,height:"3px",background:`linear-gradient(90deg,transparent,${T.cyan},${T.cyan},transparent)`,boxShadow:`0 0 16px ${T.cyan}88`,animation:active?"scan 1.4s ease-in-out infinite":"none"}}/>
+      <style>{`@keyframes scan{0%{top:0%}50%{top:95%}100%{top:0%}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+    </div>
+  );
+}
+
+function Badge({label,color}) {
+  const m={green:{bg:T.greenBg,text:T.green,border:T.greenBorder},red:{bg:T.redBg,text:T.red,border:T.redBorder},orange:{bg:T.orangeBg,text:T.orange,border:T.orangeBorder},cyan:{bg:T.cyanLight,text:T.cyan,border:T.cyanMid},gray:{bg:T.surfaceAlt,text:T.textSoft,border:T.border},purple:{bg:T.purpleBg,text:T.purple,border:T.purpleBorder}};
+  const c=m[color]||m.gray;
+  return <span style={{background:c.bg,color:c.text,border:`1px solid ${c.border}`,borderRadius:"5px",padding:"2px 8px",fontSize:"11px",fontFamily:"monospace",fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase"}}>{label}</span>;
+}
+
+function Section({title,icon,children}) {
+  return (
+    <div style={{background:T.surface,borderRadius:"12px",border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:"14px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
+      <div style={{padding:"13px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:"10px",background:T.surfaceAlt}}>
+        <span style={{fontSize:"16px"}}>{icon}</span>
+        <span style={{fontWeight:700,fontSize:"12px",letterSpacing:"0.12em",textTransform:"uppercase",color:T.cyan}}>{title}</span>
+        <div style={{flex:1,height:"1px",background:T.border,marginLeft:"6px"}}/>
+      </div>
+      <div style={{padding:"16px 18px"}}>{children}</div>
+    </div>
+  );
+}
+
+function Row({label,value,accent}) {
+  if(!value||value==="—"||value==="")return null;
+  return (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"9px 0",borderBottom:`1px solid ${T.border}`,gap:"16px"}}>
+      <span style={{fontSize:"12px",color:T.textSoft,flexShrink:0,maxWidth:"50%"}}>{label}</span>
+      <span style={{fontSize:"13px",fontWeight:700,color:accent?T.cyan:T.text,fontFamily:"monospace",textAlign:"right",wordBreak:"break-all"}}>{value}</span>
+    </div>
+  );
+}
+
+function ExtLink({href,icon,label,sub,color="cyan"}) {
+  const m={cyan:{border:T.cyanMid,text:T.cyan,bg:T.cyanLight},green:{border:T.greenBorder,text:T.green,bg:T.greenBg},orange:{border:T.orangeBorder,text:T.orange,bg:T.orangeBg},purple:{border:T.purpleBorder,text:T.purple,bg:T.purpleBg}};
+  const c=m[color]||m.cyan;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",display:"block",marginBottom:"8px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:"12px",padding:"11px 14px",background:T.surface,border:`1px solid ${T.border}`,borderRadius:"10px",transition:"all 0.2s",cursor:"pointer"}}
+        onMouseEnter={e=>{e.currentTarget.style.borderColor=c.border;e.currentTarget.style.background=c.bg;}}
+        onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surface;}}>
+        <span style={{fontSize:"18px"}}>{icon}</span>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:"13px",color:T.text}}>{label}</div>
+          {sub&&<div style={{fontSize:"11px",color:T.textSoft,marginTop:"1px"}}>{sub}</div>}
+        </div>
+        <span style={{color:c.text,fontWeight:700}}>↗</span>
+      </div>
+    </a>
+  );
+}
+
+export default function App() {
+  const [input,setInput]     = useState("");
+  const [scanning,setScan]   = useState(false);
+  const [veh,setVeh]         = useState(null);
+  const [rawResp,setRaw]     = useState(null);
+  const [error,setError]     = useState("");
+  const [loading,setLoad]    = useState(false);
+  const [showRaw,setShowRaw] = useState(false);
+
+  const fmtPlate = r => {
+    const p = r.trim().toUpperCase().replace(/[\s\-]/g,"");
+    if(/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(p)) return `${p.slice(0,2)}-${p.slice(2,5)}-${p.slice(5)}`;
+    return r.trim().toUpperCase();
+  };
+
+  const handleSearch = async () => {
+    if(!input.trim()) return;
+    setLoad(true); setScan(true); setError(""); setVeh(null); setRaw(null); setShowRaw(false);
+    try {
+      const plate = fmtPlate(input);
+      const raw = await fetchPlate(plate);
+      setRaw(raw);
+      const n = normalize(raw);
+      if(!n) setError(`Véhicule non trouvé pour « ${plate} ». Vérifiez la plaque.`);
+      else setVeh(n);
+    } catch(e) {
+      setError(`Erreur connexion backend : ${e.message}\n\n→ Vérifiez que le backend tourne sur ${BACKEND_URL}`);
+    } finally {
+      setScan(false); setLoad(false);
+    }
+  };
+
+  const v = veh||{};
+  const plateClean = (v.immat||input).replace(/-/g,"");
+  const tecdocUrl = v.ktype&&v.ktype!=="—" ? `https://www.tecdoc.net/fr/catalogue-de-pieces/search/?vehicleId=${v.ktype}` : "https://www.tecdoc.net";
+  const oscaUrl   = v.ktype&&v.ktype!=="—" ? `https://www.oscaro.com/prd/nav/${v.ktype}` : "https://www.oscaro.com";
+
+  return (
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'Inter',-apple-system,sans-serif",paddingBottom:"60px"}}>
+      <style>{`*{box-sizing:border-box;}input:focus{outline:none;}a{text-decoration:none;}pre{white-space:pre-wrap;word-break:break-all;}`}</style>
+
+      <div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"14px 24px",display:"flex",alignItems:"center",gap:"12px",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 8px rgba(0,0,0,0.06)"}}>
+        <div style={{width:"34px",height:"34px",background:`linear-gradient(135deg,${T.cyan},#006699)`,borderRadius:"8px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px"}}>🚘</div>
+        <div>
+          <div style={{fontWeight:800,fontSize:"16px",color:T.text}}>AutoDossier</div>
+          <div style={{fontSize:"10px",color:T.textSoft,letterSpacing:"0.08em",textTransform:"uppercase"}}>SIV · TecDoc · SRA · RDEA · ANEA</div>
+        </div>
+        <div style={{flex:1}}/>
+        <span>🇫🇷</span>
+      </div>
+
+      <div style={{textAlign:"center",padding:"32px 24px 24px",background:`linear-gradient(180deg,${T.cyanLight} 0%,${T.bg} 100%)`,borderBottom:`1px solid ${T.cyanMid}`}}>
+        <div style={{display:"inline-block",marginBottom:"10px"}}><Badge label="SIV · TecDoc · SRA · RDEA · ANEA" color="cyan"/></div>
+        <h1 style={{fontWeight:800,fontSize:"30px",letterSpacing:"-0.03em",color:T.text,margin:"0 0 8px",lineHeight:1.1}}>
+          Dossier véhicule<br/><span style={{color:T.cyan}}>par plaque d'immatriculation</span>
+        </h1>
+        <p style={{color:T.textMid,fontSize:"13px",margin:"0 auto",maxWidth:"440px",lineHeight:1.6}}>
+          Marque · Modèle · Motorisation · KType TecDoc · Code SRA · 1ère mise en circulation · Sinistralité
+        </p>
+      </div>
+
+      <div style={{maxWidth:"680px",margin:"0 auto",padding:"18px 16px 0"}}>
+
+        <div style={{background:T.surface,borderRadius:"12px",border:scanning?`1.5px solid ${T.cyan}`:`1px solid ${T.border}`,padding:"18px",marginBottom:"12px",position:"relative",transition:"all 0.3s",boxShadow:scanning?`0 0 24px rgba(0,153,204,0.12)`:"0 1px 4px rgba(0,0,0,0.06)"}}>
+          <ScanBar active={scanning}/>
+          <div style={{marginBottom:"8px"}}>
+            <label style={{fontSize:"11px",color:T.textSoft,letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:"monospace"}}>Plaque d'immatriculation française</label>
+          </div>
+          <div style={{display:"flex",gap:"10px"}}>
+            <div style={{flex:1,position:"relative"}}>
+              <div style={{position:"absolute",left:0,top:0,bottom:0,width:"36px",background:"#003DA5",borderRadius:"8px 0 0 8px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",zIndex:1}}>🇫🇷</div>
+              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSearch()}
+                placeholder="Ex : AB-123-CD"
+                style={{width:"100%",padding:"13px 13px 13px 46px",background:T.surfaceAlt,border:`1px solid ${T.borderStrong}`,borderRadius:"8px",color:T.text,fontSize:"20px",fontFamily:"monospace",letterSpacing:"0.1em",fontWeight:800}}/>
+            </div>
+            <button onClick={handleSearch} disabled={loading||!input.trim()} style={{padding:"13px 22px",borderRadius:"8px",border:"none",background:input.trim()&&!loading?`linear-gradient(135deg,${T.cyan},#006699)`:T.surfaceAlt,color:input.trim()&&!loading?"#fff":T.textSoft,fontWeight:800,fontSize:"14px",cursor:input.trim()&&!loading?"pointer":"not-allowed",transition:"all 0.2s",whiteSpace:"nowrap",boxShadow:input.trim()&&!loading?"0 4px 16px rgba(0,153,204,0.3)":"none"}}>
+              {loading?"⟳":"Rechercher"}
+            </button>
+          </div>
+          {scanning&&<div style={{marginTop:"10px",color:T.cyan,fontSize:"12px",fontFamily:"monospace",animation:"pulse 1s ease-in-out infinite"}}>⬡ Interrogation SIV…</div>}
+        </div>
+
+        <div style={{display:"flex",gap:"6px",flexWrap:"wrap",marginBottom:"18px",justifyContent:"center"}}>
+          {["SIV France","TecDoc KType","SRA","HistoVec","RDEA · ANEA"].map(s=>(
+            <span key={s} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:"20px",padding:"3px 10px",fontSize:"10px",color:T.textSoft}}>{s}</span>
+          ))}
+        </div>
+
+        {error&&(
+          <div style={{background:T.redBg,border:`1px solid ${T.redBorder}`,borderRadius:"10px",padding:"13px 16px",marginBottom:"16px",fontSize:"13px",lineHeight:1.6}}>
+            <div style={{color:T.red,fontWeight:700,whiteSpace:"pre-line"}}>⚠ {error}</div>
+            {rawResp&&<>
+              <button onClick={()=>setShowRaw(v=>!v)} style={{marginTop:"8px",background:"transparent",border:`1px solid ${T.redBorder}`,borderRadius:"4px",padding:"3px 8px",cursor:"pointer",fontSize:"11px",color:T.red}}>{showRaw?"▼ Masquer":"▶ Voir"} réponse brute</button>
+              {showRaw&&<pre style={{marginTop:"8px",background:T.redBg,borderRadius:"6px",padding:"10px",fontSize:"10px",color:T.text,maxHeight:"200px",overflowY:"auto"}}>{JSON.stringify(rawResp,null,2)}</pre>}
+            </>}
+          </div>
+        )}
+
+        {veh&&(
+          <div>
+            <div style={{background:`linear-gradient(135deg,${T.cyanLight},${T.surface})`,borderRadius:"14px",border:`1.5px solid ${T.cyanMid}`,padding:"20px",marginBottom:"14px",boxShadow:`0 4px 20px rgba(0,153,204,0.1)`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:"12px",marginBottom:"16px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+                  {v.logoUrl&&<img src={v.logoUrl} alt={v.marque} style={{height:"40px",objectFit:"contain"}} onError={e=>e.target.style.display="none"}/>}
+                  <div>
+                    <div style={{fontWeight:800,fontSize:"26px",color:T.text,letterSpacing:"-0.02em"}}>{v.marque} <span style={{color:T.cyan}}>{v.modele}</span></div>
+                    {v.version&&<div style={{color:T.textMid,fontSize:"13px",marginTop:"2px"}}>{v.version}</div>}
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontFamily:"monospace",fontWeight:800,fontSize:"18px",color:T.cyan,background:T.surface,border:`1px solid ${T.cyanMid}`,borderRadius:"6px",padding:"4px 14px",letterSpacing:"0.1em"}}>{v.immat}</div>
+                  <div style={{fontFamily:"monospace",color:T.textSoft,fontSize:"9px",marginTop:"4px"}}>{v.vin}</div>
+                </div>
+              </div>
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderRadius:"10px",border:`1px solid ${T.border}`,overflow:"hidden",background:T.surface,marginBottom:"12px"}}>
+                <div style={{padding:"11px 13px",borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:"10px",color:T.textSoft,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:"3px"}}>1ère mise en circulation</div>
+                  <div style={{fontFamily:"monospace",fontWeight:700,fontSize:"15px",color:T.cyan}}>{v.date1erCir}</div>
+                </div>
+                <div style={{padding:"11px 13px",borderBottom:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:"10px",color:T.textSoft,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:"3px"}}>Énergie</div>
+                  <div style={{fontFamily:"monospace",fontWeight:700,fontSize:"15px",color:T.text}}>{v.energie}</div>
+                </div>
+                <div style={{padding:"11px 13px",borderRight:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:"10px",color:T.textSoft,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:"3px"}}>Genre</div>
+                  <div style={{fontSize:"13px",fontWeight:700,color:T.text}}>{v.genreVCG}</div>
+                </div>
+                <div style={{padding:"11px 13px"}}>
+                  <div style={{fontSize:"10px",color:T.textSoft,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:"3px"}}>Couleur</div>
+                  <div style={{fontSize:"13px",fontWeight:700,color:T.text}}>{v.couleur}</div>
+                </div>
+              </div>
+
+              <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+                {v.ktype!=="—"&&<Badge label={`KType : ${v.ktype}`} color="cyan"/>}
+                {v.sraId!=="—"&&<Badge label={`SRA : ${v.sraId}`} color="purple"/>}
+                {v.codeMoteur!=="—"&&<Badge label={`Moteur : ${v.codeMoteur}`} color="orange"/>}
+                {v.collection&&<Badge label="Collection" color="gray"/>}
+              </div>
+            </div>
+
+            <Section title="Fiche technique" icon="⚙️">
+              <Row label="Marque"              value={v.marque} accent/>
+              <Row label="Modèle"              value={v.modele} accent/>
+              <Row label="Version commerciale" value={v.version}/>
+              <Row label="Carrosserie"         value={v.carrosserie}/>
+              <Row label="Couleur"             value={v.couleur}/>
+              <Row label="Énergie"             value={v.energie}/>
+              <Row label="Code moteur"         value={v.codeMoteur} accent/>
+              <Row label="Cylindrée"           value={v.ccm}/>
+              <Row label="Nb cylindres"        value={v.cylindres}/>
+              <Row label="Puissance (kW)"      value={v.puisKW} accent/>
+              <Row label="Puissance (ch)"      value={v.puisCH} accent/>
+              <Row label="Puissance fiscale"   value={v.puisFisc}/>
+              <Row label="Émissions CO₂"       value={v.co2}/>
+              <Row label="Boîte de vitesses"   value={v.boite}/>
+              <Row label="Nb passagers"        value={v.nbPassagers}/>
+              <Row label="Nb portes"           value={v.nbPortes}/>
+              <Row label="Poids"               value={v.poids}/>
+              <Row label="PTAC"                value={v.ptac}/>
+            </Section>
+
+            <Section title="Identifiants TecDoc · SRA · AlphaExpert" icon="🔑">
+              <Row label="KType TecDoc"        value={v.ktype} accent/>
+              <Row label="Code SRA"            value={v.sraId} accent/>
+              <Row label="Groupe SRA"          value={v.sraGroup}/>
+              <Row label="Type mine (CNIT)"    value={v.typeMine}/>
+              <Row label="N° réception CE"     value={v.numReception}/>
+              <Row label="Variante TVV"        value={v.variante}/>
+              <Row label="N° de série"         value={v.numSerie}/>
+              <Row label="VIN complet"         value={v.vin}/>
+            </Section>
+
+            <Section title="Pièces détachées" icon="🔧">
+              <ExtLink href={tecdocUrl} icon="📦" label="TecDoc" sub={`KType ${v.ktype} · Catalogue international`} color="cyan"/>
+              <ExtLink href={oscaUrl} icon="🛒" label="Oscaro" sub="Pièces compatibles par KType" color="cyan"/>
+              <ExtLink href={`https://www.mister-auto.com/recherche/?immatriculation=${v.immat}`} icon="🔩" label="Mister Auto" sub="Pièces par immatriculation FR" color="green"/>
+              <ExtLink href={`https://www.autodoc.fr/car-selection/?plateNumber=${v.immat}&countryCode=FR`} icon="⚙️" label="Autodoc" sub="Pièces & accessoires" color="green"/>
+            </Section>
+
+            <Section title="Historique & sinistralité" icon="📋">
+              <ExtLink href={`https://histovec.interieur.gouv.fr/histovec/owner?plaque=${plateClean}`} icon="🇫🇷" label="HistoVec" sub="CT · Sinistres · VGE · Gage · GRATUIT (avec n° de formule)" color="green"/>
+              <ExtLink href="https://www.rdea.fr" icon="🔎" label="RDEA — Sinistralité assureurs" sub="Professionnel agréé requis" color="purple"/>
+              <ExtLink href="https://www.anea.fr" icon="🏛️" label="ANEA — Partage inter-assureurs" sub="Via votre assureur" color="purple"/>
+              <ExtLink href="https://www.fcainfo.fr" icon="⚖️" label="FCA — Certificat de non-gage" color="orange"/>
+              <ExtLink href="https://www.utac-otc.com" icon="🔧" label="UTAC-OTC — Contrôles techniques" color="orange"/>
+            </Section>
+
+            <Section title="Réponse brute API" icon="🛠️">
+              <button onClick={()=>setShowRaw(v=>!v)} style={{background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:"6px",padding:"6px 12px",cursor:"pointer",fontSize:"12px",color:T.textMid,marginBottom:"10px"}}>
+                {showRaw?"▼ Masquer":"▶ Afficher"} JSON brut
+              </button>
+              {showRaw&&rawResp&&<pre style={{background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:"8px",padding:"12px",fontSize:"10px",color:T.text,maxHeight:"300px",overflowY:"auto",lineHeight:1.5}}>{JSON.stringify(rawResp,null,2)}</pre>}
+            </Section>
+          </div>
+        )}
+
+        {!veh&&!error&&!loading&&(
+          <div style={{textAlign:"center",padding:"36px 0"}}>
+            <div style={{fontSize:"52px",marginBottom:"14px"}}>🚗</div>
+            <div style={{fontSize:"14px",color:T.textSoft,marginBottom:"20px"}}>Entrez une vraie plaque française</div>
+            <div style={{background:T.cyanLight,border:`1px solid ${T.cyanMid}`,borderRadius:"12px",padding:"14px 18px",maxWidth:"360px",margin:"0 auto",fontSize:"12px",color:T.cyan,lineHeight:1.8,textAlign:"left"}}>
+              <strong>💡 Formats acceptés :</strong><br/>
+              • SIV : <code style={{fontWeight:700}}>AB-123-CD</code> ou <code>AB123CD</code><br/>
+              • Ancien FNI : <code>1234 AB 75</code>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
